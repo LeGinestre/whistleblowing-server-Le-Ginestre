@@ -1,8 +1,8 @@
 [build]
-command = "npm run build"
-publish = "build"
+  command = "npm install"
+  publish = "."
 
-[dev]
-command = "npm start"
-targetPort = 3000
+[functions]
+  directory = "netlify/functions"
+
 
