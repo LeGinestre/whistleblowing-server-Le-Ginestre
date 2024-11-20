@@ -1,49 +1,79 @@
+require('dotenv').config();
+const nodemailer = require('nodemailer');
+const fs = require('fs');
 const express = require('express');
-const bodyParser = require('body-parser');
-const db = require('./database'); // importa il file database.js
-
 const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // Aggiungi questa linea qui
+
+const { google } = require('googleapis');
+const OAuth2 = google.auth.OAuth2;
+
+const oauth2Client = new OAuth2(
+  process.env.CLIENT_ID,
+  process.env.CLIENT_SECRET,
+  "https://developers.google.com/oauthplayground"
+);
+
+oauth2Client.setCredentials({
+  refresh_token: process.env.REFRESH_TOKEN
+});
+
+const accessToken = oauth2Client.getAccessToken();
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    type: 'OAuth2',
+    user: process.env.EMAIL_USER,
+    clientId: process.env.CLIENT_ID,
+    clientSecret: process.env.CLIENT_SECRET,
+    refreshToken: process.env.REFRESH_TOKEN,
+    accessToken: accessToken
+  }
+});
+
+app.post('/submit', async (req, res) => {
+  const { descrizione, nome, cognome, email, anonimo } = req.body;
+
+  if (!email) {
+    return res.status(400).send('L\'email è obbligatoria per inviare una segnalazione.');
+  }
+
+  const segnalazione = `Descrizione: ${descrizione}\nNome: ${nome}\nCognome: ${cognome}\nEmail: ${email}\nAnonimo: ${anonimo}\n\n`;
+
+  try {
+    await fs.promises.appendFile('segnalazioni.txt', segnalazione);
+    console.log('Segnalazione salvata con successo');
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: 'whistleblowing@leginestreonlus.it',
+      subject: 'Nuova Segnalazione Ricevuta',
+      text: `È stata ricevuta una nuova segnalazione:\n\n${segnalazione}`
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log('Email di notifica inviata');
+
+    const userMailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Conferma Ricezione Segnalazione Whistleblowing',
+      text: 'Abbiamo ricevuto la tua segnalazione e stiamo procedendo con le opportune verifiche. Grazie per averci contattato.'
+    };
+
+    await transporter.sendMail(userMailOptions);
+    console.log('Email di conferma inviata all\'utente');
+
+    res.status(200).send('Segnalazione ricevuta con successo');
+  } catch (error) {
+    console.error('Errore durante il processo:', error);
+    res.status(500).send(`Errore durante il processo: ${error.message}`);
+  }
+});
+
 const port = process.env.PORT || 3000;
-
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
-
-app.get('/', (req, res) => {
-    res.send('Benvenuti al server Whistleblowing!');
-});
-
-app.post('/submit', (req, res) => {
-    console.log('Ricevuto una richiesta POST /submit');
-    console.log('Body:', req.body);
-
-    const { descrizione, nome, cognome, email, anonimo } = req.body;
-    console.log('Descrizione:', descrizione);
-    console.log('Nome:', nome);
-    console.log('Cognome:', cognome);
-    console.log('Email:', email);
-    console.log('Anonimo:', anonimo);
-
-    const stmt = db.prepare("INSERT INTO segnalazioni (descrizione, nome, cognome, email, anonimo) VALUES (?, ?, ?, ?, ?)");
-    stmt.run(descrizione, nome, cognome, email, anonimo, (err) => {
-        if (err) {
-            console.error('Errore durante l\'inserimento della segnalazione:', err);
-            return res.status(500).send('Errore durante l\'inserimento della segnalazione');
-        }
-        res.status(200).send('Segnalazione ricevuta. Grazie!');
-    });
-    stmt.finalize();
-});
-
-app.get('/segnalazioni', (req, res) => {
-    db.all("SELECT * FROM segnalazioni", (err, rows) => {
-        if (err) {
-            console.error('Errore durante la visualizzazione delle segnalazioni:', err);
-            return res.status(500).send('Errore durante la visualizzazione delle segnalazioni');
-        }
-        res.json(rows);
-    });
-});
-
 app.listen(port, () => {
-    console.log(`Server in ascolto su http://localhost:${port}`);
+  console.log(`Server in ascolto su http://localhost:${port}`);
 });
