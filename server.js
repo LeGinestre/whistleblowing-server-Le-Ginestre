@@ -33,11 +33,13 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// Endpoint radice
 app.get('/', (req, res) => {
   console.log('Richiesta GET su /');
   res.send('Benvenuto nel server Whistleblowing!');
 });
 
+// Endpoint /submit
 app.post('/submit', async (req, res) => {
   console.log('Ricevuta richiesta su /submit');
   console.log('Dati ricevuti:', req.body);
