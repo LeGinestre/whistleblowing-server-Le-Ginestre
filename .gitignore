@@ -1,3 +1,4 @@
+# .gitignore
 .cache/
 .config/
 .dike/
@@ -25,7 +26,6 @@ ntuser.ini
 LOGdeSign.log
 Sti_Trace.log
 percorso_output.txt
-# .gitignore
 .env
 .vercel
 node_modules/
