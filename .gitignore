@@ -1,1 +1,31 @@
+.cache/
+.config/
+.dike/
+.gitconfig
+.gosign/
+.lesshst
+.node_repl_history
+.pm2/
+AppData/
+Contacts/
+Downloads/
+Favorites/
+IntelGraphicsProfiles/
+Links/
+MicrosoftEdgeBackups/
+Music/
+OneDrive/
+Saved Games/
+Searches/
+Tracing/
+Videos/
+ntuser.dat.LOG1
+ntuser.dat.LOG2
+ntuser.ini
+LOGdeSign.log
+Sti_Trace.log
+percorso_output.txt
+# .gitignore
+.env
 .vercel
+node_modules/

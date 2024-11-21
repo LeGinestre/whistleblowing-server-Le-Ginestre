@@ -4,7 +4,7 @@ const fs = require('fs');
 const express = require('express');
 const app = express();
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // Aggiungi questa linea qui
+app.use(express.urlencoded({ extended: true }));
 
 const { google } = require('googleapis');
 const OAuth2 = google.auth.OAuth2;
@@ -33,16 +33,28 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+app.get('/', (req, res) => {
+  console.log('Richiesta GET su /');
+  res.send('Benvenuto nel server Whistleblowing!');
+});
+
 app.post('/submit', async (req, res) => {
+  console.log('Ricevuta richiesta su /submit');
+  console.log('Dati ricevuti:', req.body);
+
   const { descrizione, nome, cognome, email, anonimo } = req.body;
 
   if (!email) {
-    return res.status(400).send('L\'email è obbligatoria per inviare una segnalazione.');
+    console.log('Errore: l\'email è obbligatoria');
+    return res.status(400).json({ error: 'L\'email è obbligatoria per inviare una segnalazione.' });
   }
+
+  console.log('Dati convalidati:', { descrizione, nome, cognome, email, anonimo });
 
   const segnalazione = `Descrizione: ${descrizione}\nNome: ${nome}\nCognome: ${cognome}\nEmail: ${email}\nAnonimo: ${anonimo}\n\n`;
 
   try {
+    console.log('Tentativo di salvataggio della segnalazione...');
     await fs.promises.appendFile('segnalazioni.txt', segnalazione);
     console.log('Segnalazione salvata con successo');
 
@@ -53,6 +65,7 @@ app.post('/submit', async (req, res) => {
       text: `È stata ricevuta una nuova segnalazione:\n\n${segnalazione}`
     };
 
+    console.log('Tentativo di invio dell\'email di notifica...');
     await transporter.sendMail(mailOptions);
     console.log('Email di notifica inviata');
 
@@ -63,17 +76,24 @@ app.post('/submit', async (req, res) => {
       text: 'Abbiamo ricevuto la tua segnalazione e stiamo procedendo con le opportune verifiche. Grazie per averci contattato.'
     };
 
+    console.log('Tentativo di invio dell\'email di conferma all\'utente...');
     await transporter.sendMail(userMailOptions);
     console.log('Email di conferma inviata all\'utente');
 
-    res.status(200).send('Segnalazione ricevuta con successo');
+    res.status(200).json({ message: 'Segnalazione ricevuta con successo' });
   } catch (error) {
     console.error('Errore durante il processo:', error);
-    res.status(500).send(`Errore durante il processo: ${error.message}`);
+    res.status(500).json({ error: `Errore durante il processo: ${error.message}` });
   }
+});
+
+// Aggiungi un endpoint per gestire richieste non trovate (404)
+app.use((req, res, next) => {
+  res.status(404).json({ error: 'Endpoint non trovato' });
 });
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Server in ascolto su http://localhost:${port}`);
+  console.log('Tutte le variabili di ambiente:', process.env);
 });
