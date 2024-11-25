@@ -1,27 +1,32 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
-const express = require('express');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
-const { google } = require('googleapis');
-const path = require('path');
+const express = require('express');
 const app = express();
-
-const Segnalazione = require('./models/Segnalazione');
-const User = require('./models/User');
-const auth = require('./middleware/auth');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
 
-// Connessione a MongoDB
+// Configurazione della connessione a MongoDB
 mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log('MongoDB connesso'))
   .catch(err => console.error('Errore di connessione a MongoDB:', err));
 
+// Definizione del modello Segnalazione
+const SegnalazioneSchema = new mongoose.Schema({
+  descrizione: String,
+  nome: String,
+  cognome: String,
+  email: String,
+  anonimo: Boolean,
+  data: { type: Date, default: Date.now }
+});
+
+const Segnalazione = mongoose.model('Segnalazione', SegnalazioneSchema);
+
+const { google } = require('googleapis');
 const OAuth2 = google.auth.OAuth2;
+
 const oauth2Client = new OAuth2(
   process.env.CLIENT_ID,
   process.env.CLIENT_SECRET,
@@ -48,40 +53,11 @@ const transporter = nodemailer.createTransport({
 
 // Endpoint radice
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.send('Benvenuto nel server Whistleblowing!');
 });
 
-// Endpoint per la registrazione degli utenti
-app.post('/register', async (req, res) => {
-  const { username, password } = req.body;
-  try {
-    const user = new User({ username, password });
-    await user.save();
-    res.status(201).json({ message: 'Utente registrato con successo.' });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// Endpoint per il login degli utenti
-app.post('/login', async (req, res) => {
-  const { username, password } = req.body;
-  try {
-    const user = await User.findOne({ username });
-    if (!user) return res.status(400).json({ error: 'Username o password errati.' });
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ error: 'Username o password errati.' });
-
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.status(200).json({ token });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Endpoint per inviare le segnalazioni (autenticato)
-app.post('/submit', auth, async (req, res) => {
+// Endpoint /submit
+app.post('/submit', async (req, res) => {
   try {
     const { descrizione, nome, cognome, email, anonimo } = req.body;
 
@@ -91,3 +67,48 @@ app.post('/submit', auth, async (req, res) => {
 
     const nuovaSegnalazione = new Segnalazione({
       descrizione,
+      nome,
+      cognome,
+      email,
+      anonimo
+    });
+
+    await nuovaSegnalazione.save();
+
+    const segnalazione = `Descrizione: ${descrizione}\nNome: ${nome}\nCognome: ${cognome}\nEmail: ${email}\nAnonimo: ${anonimo}\n\n`;
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: 'whistleblowing@leginestreonlus.it',
+      subject: 'Nuova Segnalazione Ricevuta',
+      text: `È stata ricevuta una nuova segnalazione:\n\n${segnalazione}`
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    const userMailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Conferma Ricezione Segnalazione Whistleblowing',
+      text: 'Abbiamo ricevuto la tua segnalazione e stiamo procedendo con le opportune verifiche. Grazie per averci contattato.'
+    };
+
+    await transporter.sendMail(userMailOptions);
+
+    res.status(200).json({ message: 'Segnalazione ricevuta con successo' });
+  } catch (error) {
+    console.error('Errore durante il processo:', error);
+    res.status(500).json({ error: `Errore durante il processo: ${error.message}` });
+  }
+});
+
+// Gestione delle richieste non trovate (404)
+app.use((req, res, next) => {
+  res.status(404).json({ error: 'Endpoint non trovato' });
+});
+
+// Avvio del server
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`Server in ascolto su http://localhost:${port}`);
+});
