@@ -1,6 +1,5 @@
 require('dotenv').config();
 const nodemailer = require('nodemailer');
-const fs = require('fs');
 const express = require('express');
 const app = express();
 app.use(express.json());
@@ -56,10 +55,6 @@ app.post('/submit', async (req, res) => {
   const segnalazione = `Descrizione: ${descrizione}\nNome: ${nome}\nCognome: ${cognome}\nEmail: ${email}\nAnonimo: ${anonimo}\n\n`;
 
   try {
-    console.log('Tentativo di salvataggio della segnalazione...');
-    await fs.promises.appendFile('segnalazioni.txt', segnalazione);
-    console.log('Segnalazione salvata con successo');
-
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: 'whistleblowing@leginestreonlus.it',
