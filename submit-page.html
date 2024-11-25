@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invia una Segnalazione</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    input[type="text"], input[type="email"], textarea {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0 10px 0;
+      display: inline-block;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 15px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <h1>Invia una Segnalazione</h1>
+  <form action="/submit" method="POST">
+    <div class="form-group">
+      <label for="descrizione">Descrizione:</label>
+      <textarea id="descrizione" name="descrizione" required rows="4"></textarea>
+    </div>
+    <div class="form-group">
+      <label for="nome">Nome:</label>
+      <input type="text" id="nome" name="nome">
+    </div>
+    <div class="form-group">
+      <label for="cognome">Cognome:</label>
+      <input type="text" id="cognome" name="cognome">
+    </div>
+    <div class="form-group">
+      <label for="email">Email:</label>
+      <input type="email" id="email" name="email" required>
+    </div>
+    <div class="form-group">
+      <input type="checkbox" id="anonimo" name="anonimo">
+      <label for="anonimo">Invia segnalazione in modo anonimo</label>
+    </div>
+    <button type="submit">Invia Segnalazione</button>
+  </form>
+</body>
+</html>

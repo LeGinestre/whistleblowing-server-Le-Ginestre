@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modulo di Segnalazione</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .container {
+      text-align: center;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    input[type="text"], input[type="email"], textarea {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0 10px 0;
+      display: inline-block;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 15px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Modulo di Segnalazione</h1>
+    <p>Compila il modulo per la segnalazione attraverso la presente piattaforma.</p>
+    <p>Al termine ti verrà fornito un codice personale identificativo della segnalazione. Grazie a questo codice potrai accedere alla tua segnalazione inviata, leggere le nostre risposte, dialogare con noi ed allegare eventuali altri documenti.</p>
+    <p>In caso di smarrimento, non sarà possibile recuperare tale codice. Utilizza questa sezione esclusivamente per le finalità sopra indicate.</p>
+    
+    <button onclick="window.location.href='/submit-page.html'">Invia una segnalazione</button>
+    
+    <h2>Hai già effettuato una segnalazione? Inserisci il tuo key code.</h2>
+    <div class="form-group">
+      <input type="text" id="keycode" name="keycode" placeholder="XXXX XXXX XXXX XXXX">
+    </div>
+    <button onclick="submitKeycode()">Invia</button>
+    
+    <p>Powered by OpenBlow® - v2.1.15</p>
+  </div>
+
+  <script>
+    function submitKeycode() {
+      const keycode = document.getElementById('keycode').value;
+      if(keycode) {
+        window.location.href = `/check-report.html?keycode=${keycode}`;
+      } else {
+        alert('Inserisci un codice valido.');
+      }
+    }
+  </script>
+</body>
+</html>
