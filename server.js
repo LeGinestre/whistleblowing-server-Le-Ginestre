@@ -1,32 +1,27 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
-const nodemailer = require('nodemailer');
 const express = require('express');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
+const { google } = require('googleapis');
+const path = require('path');
 const app = express();
+
+const Segnalazione = require('./models/Segnalazione');
+const User = require('./models/User');
+const auth = require('./middleware/auth');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Configurazione della connessione a MongoDB
+// Connessione a MongoDB
 mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log('MongoDB connesso'))
   .catch(err => console.error('Errore di connessione a MongoDB:', err));
 
-// Definizione del modello Segnalazione
-const SegnalazioneSchema = new mongoose.Schema({
-  descrizione: String,
-  nome: String,
-  cognome: String,
-  email: String,
-  anonimo: Boolean,
-  data: { type: Date, default: Date.now }
-});
-
-const Segnalazione = mongoose.model('Segnalazione', SegnalazioneSchema);
-
-const { google } = require('googleapis');
 const OAuth2 = google.auth.OAuth2;
-
 const oauth2Client = new OAuth2(
   process.env.CLIENT_ID,
   process.env.CLIENT_SECRET,
@@ -53,13 +48,43 @@ const transporter = nodemailer.createTransport({
 
 // Endpoint radice
 app.get('/', (req, res) => {
-  res.send('Benvenuto nel server Whistleblowing!');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Endpoint /submit
+// Endpoint per la registrazione degli utenti
+app.post('/register', async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    const user = new User({ username, password });
+    await user.save();
+    res.status(201).json({ message: 'Utente registrato con successo.' });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Endpoint per il login degli utenti
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    const user = await User.findOne({ username });
+    if (!user) return res.status(400).json({ error: 'Username o password errati.' });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ error: 'Username o password errati.' });
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.status(200).json({ token });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint per inviare le segnalazioni (autenticato)
 app.post('/submit', async (req, res) => {
   try {
-    const { descrizione, nome, cognome, email, anonimo } = req.body;
+    const { descrizione, nome, cognome, email } = req.body;
+    const anonimo = req.body.anonimo === 'on';
 
     if (!email) {
       return res.status(400).json({ error: 'L\'email è obbligatoria per inviare una segnalazione.' });
