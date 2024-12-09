@@ -32,10 +32,23 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// Funzione per generare un codice univoco
+const generateUniqueCode = () => {
+  return 'ID-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+};
+
+// Struttura di archiviazione per le segnalazioni
+const segnalazioni = {};
+
 // Endpoint radice
 app.get('/', (req, res) => {
   console.log('Richiesta GET su /');
   res.send('Benvenuto nel server Whistleblowing!');
+});
+
+// Servire la pagina HTML
+app.get('/verify', (req, res) => {
+  res.sendFile(path.join(__dirname, 'verify.html'));
 });
 
 // Endpoint /submit
@@ -45,14 +58,10 @@ app.post('/submit', async (req, res) => {
 
   const { descrizione, nome, cognome, email, anonimo } = req.body;
 
-  if (!email) {
-    console.log('Errore: l\'email è obbligatoria');
-    return res.status(400).json({ error: 'L\'email è obbligatoria per inviare una segnalazione.' });
-  }
+  const codiceUnivoco = generateUniqueCode();
+  segnalazioni[codiceUnivoco] = { descrizione, nome, cognome, anonimo, status: 'Ricevuta' };
 
-  console.log('Dati convalidati:', { descrizione, nome, cognome, email, anonimo });
-
-  const segnalazione = `Descrizione: ${descrizione}\nNome: ${nome}\nCognome: ${cognome}\nEmail: ${email}\nAnonimo: ${anonimo}\n\n`;
+  const segnalazione = `Descrizione: ${descrizione}\nNome: ${nome}\nCognome: ${cognome}\nAnonimo: ${anonimo}\nCodice Segnalazione: ${codiceUnivoco}\n\n`;
 
   try {
     const mailOptions = {
@@ -66,21 +75,22 @@ app.post('/submit', async (req, res) => {
     await transporter.sendMail(mailOptions);
     console.log('Email di notifica inviata');
 
-    const userMailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: 'Conferma Ricezione Segnalazione Whistleblowing',
-      text: 'Abbiamo ricevuto la tua segnalazione e stiamo procedendo con le opportune verifiche. Grazie per averci contattato.'
-    };
-
-    console.log('Tentativo di invio dell\'email di conferma all\'utente...');
-    await transporter.sendMail(userMailOptions);
-    console.log('Email di conferma inviata all\'utente');
-
-    res.status(200).json({ message: 'Segnalazione ricevuta con successo' });
+    res.status(200).json({ message: 'Segnalazione ricevuta con successo', codiceSegnalazione: codiceUnivoco });
   } catch (error) {
     console.error('Errore durante il processo:', error);
     res.status(500).json({ error: `Errore durante il processo: ${error.message}` });
+  }
+});
+
+// Endpoint per verificare lo stato della segnalazione
+app.get('/status', (req, res) => {
+  const codiceUnivoco = req.query.code;
+  const segnalazione = segnalazioni[codiceUnivoco];
+
+  if (segnalazione) {
+    res.status(200).json({ status: segnalazione.status });
+  } else {
+    res.status(404).json({ error: 'Segnalazione non trovata' });
   }
 });
 

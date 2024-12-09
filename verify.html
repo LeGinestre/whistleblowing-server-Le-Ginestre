@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Verifica Stato Segnalazione</title>
+</head>
+<body>
+  <h1>Verifica Stato Segnalazione</h1>
+  <form action="/status" method="GET">
+    <label for="code">Codice Segnalazione:</label>
+    <input id="code" name="code" type="text" required>
+    <button type="submit">Verifica Stato</button>
+  </form>
+  <div id="status"></div>
+</body>
+</html>
