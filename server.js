@@ -1,6 +1,9 @@
 require('dotenv').config();
 const nodemailer = require('nodemailer');
 const express = require('express');
+const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -32,13 +35,24 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+const db = new sqlite3.Database('database.db'); // Usa un file per il database persistente.
+
+// Creazione della tabella segnalazioni
+db.serialize(() => {
+  db.run(`CREATE TABLE IF NOT EXISTS segnalazioni (
+    codice TEXT PRIMARY KEY,
+    descrizione TEXT,
+    nome TEXT,
+    cognome TEXT,
+    anonimo BOOLEAN,
+    status TEXT
+  )`);
+});
+
 // Funzione per generare un codice univoco
 const generateUniqueCode = () => {
   return 'ID-' + Math.random().toString(36).substr(2, 9).toUpperCase();
 };
-
-// Struttura di archiviazione per le segnalazioni
-const segnalazioni = {};
 
 // Endpoint radice
 app.get('/', (req, res) => {
@@ -57,41 +71,75 @@ app.post('/submit', async (req, res) => {
   console.log('Dati ricevuti:', req.body);
 
   const { descrizione, nome, cognome, email, anonimo } = req.body;
-
   const codiceUnivoco = generateUniqueCode();
-  segnalazioni[codiceUnivoco] = { descrizione, nome, cognome, anonimo, status: 'Ricevuta' };
 
-  const segnalazione = `Descrizione: ${descrizione}\nNome: ${nome}\nCognome: ${cognome}\nAnonimo: ${anonimo}\nCodice Segnalazione: ${codiceUnivoco}\n\n`;
+  db.run(`INSERT INTO segnalazioni (codice, descrizione, nome, cognome, anonimo, status) VALUES (?, ?, ?, ?, ?, ?)`, 
+    [codiceUnivoco, descrizione, nome, cognome, anonimo, 'Ricevuta'], (err) => {
+      if (err) {
+        return res.status(500).json({ error: 'Errore durante il salvataggio della segnalazione' });
+      }
 
-  try {
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: 'whistleblowing@leginestreonlus.it',
-      subject: 'Nuova Segnalazione Ricevuta',
-      text: `È stata ricevuta una nuova segnalazione:\n\n${segnalazione}`
-    };
+      const segnalazione = `Descrizione: ${descrizione}\nNome: ${nome}\nCognome: ${cognome}\nAnonimo: ${anonimo}\nCodice Segnalazione: ${codiceUnivoco}\n\n`;
 
-    console.log('Tentativo di invio dell\'email di notifica...');
-    await transporter.sendMail(mailOptions);
-    console.log('Email di notifica inviata');
+      try {
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: 'whistleblowing@leginestreonlus.it',
+          subject: 'Nuova Segnalazione Ricevuta',
+          text: `È stata ricevuta una nuova segnalazione:\n\n${segnalazione}`
+        };
 
-    res.status(200).json({ message: 'Segnalazione ricevuta con successo', codiceSegnalazione: codiceUnivoco });
-  } catch (error) {
-    console.error('Errore durante il processo:', error);
-    res.status(500).json({ error: `Errore durante il processo: ${error.message}` });
-  }
+        console.log('Tentativo di invio dell\'email di notifica...');
+        await transporter.sendMail(mailOptions);
+        console.log('Email di notifica inviata');
+
+        if (email) {
+          const userMailOptions = {
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: 'Conferma Ricezione Segnalazione Whistleblowing',
+            text: 'Abbiamo ricevuto la tua segnalazione e stiamo procedendo con le opportune verifiche. Grazie per averci contattato.'
+          };
+
+          console.log('Tentativo di invio dell\'email di conferma all\'utente...');
+          await transporter.sendMail(userMailOptions);
+          console.log('Email di conferma inviata all\'utente');
+        }
+
+        res.status(200).json({ message: 'Segnalazione ricevuta con successo', codiceSegnalazione: codiceUnivoco });
+      } catch (error) {
+        console.error('Errore durante il processo:', error);
+        res.status(500).json({ error: `Errore durante il processo: ${error.message}` });
+      }
+    });
 });
 
 // Endpoint per verificare lo stato della segnalazione
 app.get('/status', (req, res) => {
   const codiceUnivoco = req.query.code;
-  const segnalazione = segnalazioni[codiceUnivoco];
 
-  if (segnalazione) {
-    res.status(200).json({ status: segnalazione.status });
-  } else {
-    res.status(404).json({ error: 'Segnalazione non trovata' });
-  }
+  db.get(`SELECT status FROM segnalazioni WHERE codice = ?`, [codiceUnivoco], (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: 'Errore durante il recupero dello stato della segnalazione' });
+    }
+    if (row) {
+      res.status(200).json({ status: row.status });
+    } else {
+      res.status(404).json({ error: 'Segnalazione non trovata' });
+    }
+  });
+});
+
+// Endpoint per aggiornare lo stato della segnalazione
+app.post('/update-status', (req, res) => {
+  const { codiceSegnalazione, nuovoStato } = req.body;
+
+  db.run(`UPDATE segnalazioni SET status = ? WHERE codice = ?`, [nuovoStato, codiceSegnalazione], (err) => {
+    if (err) {
+      return res.status(500).json({ error: 'Errore durante l\'aggiornamento dello stato della segnalazione' });
+    }
+    res.status(200).json({ message: 'Stato della segnalazione aggiornato con successo' });
+  });
 });
 
 // Aggiungi un endpoint per gestire richieste non trovate (404)
