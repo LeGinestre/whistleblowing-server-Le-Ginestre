@@ -56,7 +56,6 @@ const generateUniqueCode = () => {
 
 // Endpoint radice
 app.get('/', (req, res) => {
-  console.log('Richiesta GET su /');
   res.send('Benvenuto nel server Whistleblowing!');
 });
 
@@ -67,14 +66,11 @@ app.get('/verify', (req, res) => {
 
 // Endpoint /submit
 app.post('/submit', async (req, res) => {
-  console.log('Ricevuta richiesta su /submit');
-  console.log('Dati ricevuti:', req.body);
-
   const { descrizione, nome, cognome, email, anonimo } = req.body;
   const codiceUnivoco = generateUniqueCode();
 
   db.run(`INSERT INTO segnalazioni (codice, descrizione, nome, cognome, anonimo, status) VALUES (?, ?, ?, ?, ?, ?)`, 
-    [codiceUnivoco, descrizione, nome, cognome, anonimo, 'Ricevuta'], (err) => {
+    [codiceUnivoco, descrizione, nome, cognome, anonimo, 'Ricevuta'], async (err) => {
       if (err) {
         return res.status(500).json({ error: 'Errore durante il salvataggio della segnalazione' });
       }
@@ -89,9 +85,7 @@ app.post('/submit', async (req, res) => {
           text: `È stata ricevuta una nuova segnalazione:\n\n${segnalazione}`
         };
 
-        console.log('Tentativo di invio dell\'email di notifica...');
         await transporter.sendMail(mailOptions);
-        console.log('Email di notifica inviata');
 
         if (email) {
           const userMailOptions = {
@@ -101,14 +95,11 @@ app.post('/submit', async (req, res) => {
             text: 'Abbiamo ricevuto la tua segnalazione e stiamo procedendo con le opportune verifiche. Grazie per averci contattato.'
           };
 
-          console.log('Tentativo di invio dell\'email di conferma all\'utente...');
           await transporter.sendMail(userMailOptions);
-          console.log('Email di conferma inviata all\'utente');
         }
 
         res.status(200).json({ message: 'Segnalazione ricevuta con successo', codiceSegnalazione: codiceUnivoco });
       } catch (error) {
-        console.error('Errore durante il processo:', error);
         res.status(500).json({ error: `Errore durante il processo: ${error.message}` });
       }
     });
@@ -150,5 +141,6 @@ app.use((req, res, next) => {
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Server in ascolto su http://localhost:${port}`);
-  console.log('Tutte le variabili di ambiente:', process.env);
 });
+
+
