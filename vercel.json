@@ -8,11 +8,21 @@
   ],
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "server.js"
+      "src": "/submit",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/status",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/update-status",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/",
+      "dest": "/server.js"
     }
   ]
 }
-
-
 

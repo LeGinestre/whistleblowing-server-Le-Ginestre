@@ -21,21 +21,41 @@ oauth2Client.setCredentials({
   refresh_token: process.env.REFRESH_TOKEN
 });
 
-const accessToken = oauth2Client.getAccessToken();
+// Rinnova l'access token quando scade
+async function getAccessToken() {
+  try {
+    const { token } = await oauth2Client.getAccessToken();
+    return token;
+  } catch (error) {
+    console.error('Errore durante il rinnovo dell\'access token:', error.message);
+    throw new Error('Access token non valido');
+  }
+}
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    type: 'OAuth2',
-    user: process.env.EMAIL_USER,
-    clientId: process.env.CLIENT_ID,
-    clientSecret: process.env.CLIENT_SECRET,
-    refreshToken: process.env.REFRESH_TOKEN,
-    accessToken: accessToken
+const setupTransporter = async () => {
+  const accessToken = await getAccessToken();
+
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      type: 'OAuth2',
+      user: process.env.EMAIL_USER,
+      clientId: process.env.CLIENT_ID,
+      clientSecret: process.env.CLIENT_SECRET,
+      refreshToken: process.env.REFRESH_TOKEN,
+      accessToken: accessToken
+    }
+  });
+};
+
+// Creazione della connessione al database
+const db = new sqlite3.Database('database.db', (err) => {
+  if (err) {
+    console.error('Errore durante la connessione al database:', err.message);
+  } else {
+    console.log('Connesso al database SQLite.');
   }
 });
-
-const db = new sqlite3.Database('database.db'); // Usa un file per il database persistente.
 
 // Creazione della tabella segnalazioni
 db.serialize(() => {
@@ -46,7 +66,13 @@ db.serialize(() => {
     cognome TEXT,
     anonimo BOOLEAN,
     status TEXT
-  )`);
+  )`, (err) => {
+    if (err) {
+      console.error('Errore durante la creazione della tabella:', err.message);
+    } else {
+      console.log('Tabella "segnalazioni" creata o già esistente.');
+    }
+  });
 });
 
 // Funzione per generare un codice univoco
@@ -56,6 +82,7 @@ const generateUniqueCode = () => {
 
 // Endpoint radice
 app.get('/', (req, res) => {
+  console.log('Richiesta GET su /');
   res.send('Benvenuto nel server Whistleblowing!');
 });
 
@@ -66,18 +93,24 @@ app.get('/verify', (req, res) => {
 
 // Endpoint /submit
 app.post('/submit', async (req, res) => {
-  const { descrizione, nome, cognome, email, anonimo } = req.body;
-  const codiceUnivoco = generateUniqueCode();
+  console.log('Ricevuta richiesta su /submit');
+  console.log('Dati ricevuti:', req.body);
 
+  const { descrizione, nome, cognome, email, anonimo } = req.body;
+
+  const codiceUnivoco = generateUniqueCode();
   db.run(`INSERT INTO segnalazioni (codice, descrizione, nome, cognome, anonimo, status) VALUES (?, ?, ?, ?, ?, ?)`, 
     [codiceUnivoco, descrizione, nome, cognome, anonimo, 'Ricevuta'], async (err) => {
       if (err) {
+        console.error('Errore durante il salvataggio della segnalazione:', err.message);
         return res.status(500).json({ error: 'Errore durante il salvataggio della segnalazione' });
       }
 
       const segnalazione = `Descrizione: ${descrizione}\nNome: ${nome}\nCognome: ${cognome}\nAnonimo: ${anonimo}\nCodice Segnalazione: ${codiceUnivoco}\n\n`;
 
       try {
+        const transporter = await setupTransporter();
+
         const mailOptions = {
           from: process.env.EMAIL_USER,
           to: 'whistleblowing@leginestreonlus.it',
@@ -85,7 +118,9 @@ app.post('/submit', async (req, res) => {
           text: `È stata ricevuta una nuova segnalazione:\n\n${segnalazione}`
         };
 
+        console.log('Tentativo di invio dell\'email di notifica...');
         await transporter.sendMail(mailOptions);
+        console.log('Email di notifica inviata');
 
         if (email) {
           const userMailOptions = {
@@ -100,6 +135,7 @@ app.post('/submit', async (req, res) => {
 
         res.status(200).json({ message: 'Segnalazione ricevuta con successo', codiceSegnalazione: codiceUnivoco });
       } catch (error) {
+        console.error('Errore durante il processo:', error.message);
         res.status(500).json({ error: `Errore durante il processo: ${error.message}` });
       }
     });
@@ -108,9 +144,9 @@ app.post('/submit', async (req, res) => {
 // Endpoint per verificare lo stato della segnalazione
 app.get('/status', (req, res) => {
   const codiceUnivoco = req.query.code;
-
   db.get(`SELECT status FROM segnalazioni WHERE codice = ?`, [codiceUnivoco], (err, row) => {
     if (err) {
+      console.error('Errore durante il recupero dello stato della segnalazione:', err.message);
       return res.status(500).json({ error: 'Errore durante il recupero dello stato della segnalazione' });
     }
     if (row) {
@@ -123,10 +159,10 @@ app.get('/status', (req, res) => {
 
 // Endpoint per aggiornare lo stato della segnalazione
 app.post('/update-status', (req, res) => {
-  const { codiceSegnalazione, nuovoStato } = req.body;
-
-  db.run(`UPDATE segnalazioni SET status = ? WHERE codice = ?`, [nuovoStato, codiceSegnalazione], (err) => {
+  const { codice, nuovoStato } = req.body;
+  db.run(`UPDATE segnalazioni SET status = ? WHERE codice = ?`, [nuovoStato, codice], (err) => {
     if (err) {
+      console.error('Errore durante l\'aggiornamento dello stato della segnalazione:', err.message);
       return res.status(500).json({ error: 'Errore durante l\'aggiornamento dello stato della segnalazione' });
     }
     res.status(200).json({ message: 'Stato della segnalazione aggiornato con successo' });
@@ -138,9 +174,9 @@ app.use((req, res, next) => {
   res.status(404).json({ error: 'Endpoint non trovato' });
 });
 
-const port = process.env.PORT || 3000;
+// Modifica la porta su 3001
+const port = process.env.PORT || 3001;
 app.listen(port, () => {
   console.log(`Server in ascolto su http://localhost:${port}`);
+  console.log('Tutte le variabili di ambiente:', process.env);
 });
-
-
